@@ -41,6 +41,10 @@ export async function getDashboard(req, res) {
     const sales = await prisma.sale.findMany({
       where,
       include: { product: true }
+  } catch (error) {
+    console.error("❌ DASHBOARD ERROR:", error)
+    res.status(500).json({ error: 'Error en dashboard' })
+  
     })
 
     const products = await prisma.product.findMany({
