@@ -29,6 +29,14 @@ function getStartDate(period) {
 
 export async function getDashboard(req, res) {
   try {
+    console.log("USER:", req.user)
+
+    const userId = req.user?.userId
+
+    if (!userId) {
+      return res.status(401).json({ error: 'No user' })
+    }
+
     const userId = req.user.userId
     const period = String(req.query.period || 'month')
     const startDate = getStartDate(period)
@@ -41,11 +49,12 @@ export async function getDashboard(req, res) {
     const sales = await prisma.sale.findMany({
       where,
       include: { product: true }
-  } catch (error) {
+  } 
+
+   catch (error) {
     console.error("❌ DASHBOARD ERROR:", error)
     res.status(500).json({ error: 'Error en dashboard' })
-  
-    })
+  }
 
     const products = await prisma.product.findMany({
       where: { userId }
