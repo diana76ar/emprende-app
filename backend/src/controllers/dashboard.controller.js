@@ -37,7 +37,7 @@ export async function getDashboard(req, res) {
       return res.status(401).json({ error: 'No user' })
     }
 
-    const userId = req.user.userId
+    //const userId = req.user.userId
     const period = String(req.query.period || 'month')
     const startDate = getStartDate(period)
 
