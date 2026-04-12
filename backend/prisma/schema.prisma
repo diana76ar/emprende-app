@@ -11,20 +11,28 @@ model User {
   id       String   @id @default(uuid())
   email    String   @unique
   password String
+  plan      String @default("free")
+  createdAt DateTime @default(now())
 }
 
 model Product {
   id        String @id @default(uuid())
   name      String
+  type      String
   costBase  Float
+  costShipping  Float
+  costCommission  Float
+  costOther Float
+  margin    Float
   userId    String
 }
 
 model Sale {
   id        String @id @default(uuid())
-  price     Float
-  quantity  Int
   date      DateTime @default(now())
-  userId    String
+  quantity  Int
+  price     Float
+  profit    Float
   productId String
+  userId    String  
 }
