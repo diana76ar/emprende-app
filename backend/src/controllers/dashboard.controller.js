@@ -241,4 +241,3 @@ export async function getDashboard(req, res) {
     console.error("❌ ERROR DASHBOARD:", error)
     res.status(500).json({ error: "Error en dashboard" })
   }
-}
