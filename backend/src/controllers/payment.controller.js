@@ -1,57 +1,72 @@
-import Stripe from 'stripe'
+import mercadopago from 'mercadopago'
 import { prisma } from '../prisma.js'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET)
+mercadopago.configure({
+  access_token: process.env.MERCADO_PAGO_ACCESS_TOKEN
+})
 
 export async function createCheckout(req, res) {
   try {
     const userId = req.user.userId
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      mode: 'subscription',
-      line_items: [{
-        price: process.env.STRIPE_PRICE_ID, // price_xxx creado en Stripe
-        quantity: 1
-      }],
-      metadata: {
-        userId
+    const preference = {
+      items: [
+        {
+          id: 'pro_subscription',
+          title: 'Plan PRO - Emprende App',
+          description: 'Acceso ilimitado a productos y ventas',
+          quantity: 1,
+          currency_id: 'ARS', // Cambiar según tu país: ARS, BRL, MXN, etc.
+          unit_price: 2999, // Precio en la moneda (2999 = $29.99 ARS)
+        }
+      ],
+      payer: {
+        email: req.user.email // Mercado Pago requiere email del pagador
       },
-      success_url: `${process.env.FRONTEND_URL}/success`,
-      cancel_url: `${process.env.FRONTEND_URL}/cancel`
-    })
+      back_urls: {
+        success: `${process.env.FRONTEND_URL}/success`,
+        failure: `${process.env.FRONTEND_URL}/cancel`,
+        pending: `${process.env.FRONTEND_URL}/cancel`
+      },
+      auto_return: 'approved',
+      external_reference: userId, // Para identificar al usuario en el webhook
+      notification_url: `${process.env.BACKEND_URL}/payment/webhook`
+    }
 
-    res.json({ url: session.url })
+    const result = await mercadopago.preferences.create(preference)
+
+    res.json({ url: result.body.init_point })
   } catch (error) {
-    console.error('Error creating checkout:', error)
-    res.status(500).json({ error: 'Error creando checkout' })
+    console.error('Error creating Mercado Pago preference:', error)
+    res.status(500).json({ error: 'Error creando preferencia de pago' })
   }
 }
 
 export async function handleWebhook(req, res) {
-  const sig = req.headers['stripe-signature']
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET
-
-  let event
-
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret)
-  } catch (err) {
-    console.log(`Webhook signature verification failed.`, err.message)
-    return res.status(400).send(`Webhook Error: ${err.message}`)
+    const { type, data } = req.body
+
+    if (type === 'payment') {
+      const paymentId = data.id
+
+      // Obtener detalles del pago
+      const payment = await mercadopago.payment.get(paymentId)
+
+      if (payment.body.status === 'approved') {
+        const userId = payment.body.external_reference
+
+        await prisma.user.update({
+          where: { id: userId },
+          data: { plan: 'pro' }
+        })
+
+        console.log(`User ${userId} upgraded to PRO via Mercado Pago`)
+      }
+    }
+
+    res.json({ received: true })
+  } catch (error) {
+    console.error('Error processing Mercado Pago webhook:', error)
+    res.status(500).json({ error: 'Error procesando webhook' })
   }
-
-  if (event.type === 'checkout.session.completed') {
-    const session = event.data.object
-    const userId = session.metadata.userId
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: { plan: 'pro' }
-    })
-
-    console.log(`User ${userId} upgraded to PRO`)
-  }
-
-  res.json({ received: true })
 }
