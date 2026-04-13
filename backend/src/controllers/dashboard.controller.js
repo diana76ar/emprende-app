@@ -101,13 +101,24 @@ export async function getDashboard(req, res) {
 
     for (const product of products) {
       const calc = calculateProduct(product)
-
       const marginPercent = (calc.profit / calc.totalCost) * 100
 
       if (marginPercent < 20) {
         alerts.push({
           type: 'low_margin',
           message: `El producto "${product.name}" tiene bajo margen`
+        })
+      }
+
+      if (product.stock === 0) {
+        alerts.push({
+          type: 'no_stock',
+          message: `Sin stock: ${product.name}`
+        })
+      } else if (product.stock <= 3) {
+        alerts.push({
+          type: 'low_stock',
+          message: `Stock bajo (${product.stock} unidades): ${product.name}`
         })
       }
     }

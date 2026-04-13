@@ -1,6 +1,6 @@
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { LayoutDashboard, Package, ShoppingCart, Sun, Moon, Zap } from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingCart, Sun, Moon, Zap, LogOut } from 'lucide-react'
 
 const PAGE_LABELS = {
   '/dashboard': 'Dashboard',
@@ -10,6 +10,7 @@ const PAGE_LABELS = {
 
 export default function Layout({ children }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const [theme, setTheme] = useState('light')
 
   useEffect(() => {
@@ -25,6 +26,11 @@ export default function Layout({ children }) {
     setTheme(nextTheme)
     localStorage.setItem('theme', nextTheme)
     document.documentElement.setAttribute('data-theme', nextTheme)
+  }
+
+  function handleLogout() {
+    localStorage.removeItem('token')
+    navigate('/', { replace: true })
   }
 
   const navItems = [
@@ -69,6 +75,10 @@ export default function Layout({ children }) {
               ? <><Sun size={15} strokeWidth={2} /> <span>Modo claro</span></>
               : <><Moon size={15} strokeWidth={2} /> <span>Modo oscuro</span></>
             }
+          </button>
+          <button className="logout-button" onClick={handleLogout} type="button" aria-label="Cerrar sesion">
+            <LogOut size={15} strokeWidth={2} />
+            <span>Cerrar sesion</span>
           </button>
         </div>
       </aside>

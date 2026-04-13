@@ -4,27 +4,52 @@ import jwt from 'jsonwebtoken'
 import { prisma } from '../prisma.js'
 
 export async function register(req, res) {
-  const { email, password } = req.body
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase()
+    const password = String(req.body.password || '')
 
-  const hashed = await bcrypt.hash(password, 10)
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email y contrasena son obligatorios' })
+    }
 
-  const user = await prisma.user.create({
-    data: { email, password: hashed }
-  })
+    const hashed = await bcrypt.hash(password, 10)
 
-  res.json(user)
+    const user = await prisma.user.create({
+      data: { email, password: hashed },
+      select: { id: true, email: true, plan: true, createdAt: true }
+    })
+
+    res.status(201).json(user)
+  } catch (error) {
+    if (error?.code === 'P2002') {
+      return res.status(409).json({ error: 'El email ya esta registrado' })
+    }
+
+    console.error('Error en register:', error)
+    res.status(500).json({ error: 'No se pudo registrar el usuario' })
+  }
 }
 
 export async function login(req, res) {
-  const { email, password } = req.body
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase()
+    const password = String(req.body.password || '')
 
-  const user = await prisma.user.findUnique({ where: { email } })
-  if (!user) return res.status(404).json({ error: 'User not found' })
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email y contrasena son obligatorios' })
+    }
 
-  const valid = await bcrypt.compare(password, user.password)
-  if (!valid) return res.status(401).json({ error: 'Invalid credentials' })
+    const user = await prisma.user.findUnique({ where: { email } })
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' })
 
-  const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET)
+    const valid = await bcrypt.compare(password, user.password)
+    if (!valid) return res.status(401).json({ error: 'Credenciales invalidas' })
 
-  res.json({ token })
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET)
+
+    res.json({ token })
+  } catch (error) {
+    console.error('Error en login:', error)
+    res.status(500).json({ error: 'No se pudo iniciar sesion' })
+  }
 }

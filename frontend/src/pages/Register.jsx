@@ -32,7 +32,10 @@ export default function Register() {
       setSuccess('Cuenta creada con éxito. Te redirigimos al login...')
       setTimeout(() => navigate('/'), 1200)
     } catch (err) {
-      const message = err?.response?.data?.error || 'No se pudo crear la cuenta. Intenta nuevamente.'
+      const status = err?.response?.status
+      const message = status === 409
+        ? 'Ese email ya esta registrado. Proba iniciar sesion o usar otro email.'
+        : err?.response?.data?.error || 'No se pudo crear la cuenta. Intenta nuevamente.'
       setError(message)
     } finally {
       setLoading(false)

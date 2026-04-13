@@ -386,6 +386,8 @@ a {
 
 .sidebar-footer {
   margin-top: auto;
+  display: grid;
+  gap: 8px;
 }
 
 .theme-toggle {
@@ -412,6 +414,33 @@ a {
 }
 
 .theme-toggle:active {
+  transform: translateY(0);
+}
+
+.logout-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #f1c0c0;
+  background: #fff5f5;
+  color: #8e2a2a;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.logout-button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+  border-color: #da8e8e;
+  color: #752020;
+}
+
+.logout-button:active {
   transform: translateY(0);
 }
 

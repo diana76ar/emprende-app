@@ -54,6 +54,7 @@ function validateProductInput(data) {
   const costCommission = Number(data.costCommission)
   const costOther = Number(data.costOther)
   const margin = Number(data.margin)
+  const stock = data.stock !== undefined ? Number(data.stock) : 0
 
   if (!name) {
     return { error: 'El nombre es obligatorio' }
@@ -75,6 +76,10 @@ function validateProductInput(data) {
     return { error: 'El margen no puede ser negativo' }
   }
 
+  if (Number.isNaN(stock) || stock < 0 || !Number.isInteger(stock)) {
+    return { error: 'El stock debe ser un entero mayor o igual a 0' }
+  }
+
   return {
     value: {
       name,
@@ -83,7 +88,8 @@ function validateProductInput(data) {
       costShipping,
       costCommission,
       costOther,
-      margin
+      margin,
+      stock
     }
   }
 }

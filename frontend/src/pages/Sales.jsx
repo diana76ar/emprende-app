@@ -237,9 +237,21 @@ export default function Sales() {
           >
             <option value="">Seleccionar producto</option>
             {products.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+              <option key={p.id} value={p.id} disabled={p.stock === 0}>
+                {p.name}{p.stock === 0 ? ' — Sin stock' : ` — Stock: ${p.stock}`}
+              </option>
             ))}
           </select>
+          {selectedProduct && selectedProduct.stock === 0 && (
+            <p style={{ margin: '6px 0 0', fontSize: 12, color: '#c62828', fontWeight: 600 }}>
+              ❌ Este producto no tiene stock disponible
+            </p>
+          )}
+          {selectedProduct && selectedProduct.stock > 0 && selectedProduct.stock <= 3 && (
+            <p style={{ margin: '6px 0 0', fontSize: 12, color: '#e65100', fontWeight: 600 }}>
+              ⚠️ Stock bajo: {selectedProduct.stock} unidades disponibles
+            </p>
+          )}
         </div>
 
         {ref && (
@@ -343,15 +355,17 @@ export default function Sales() {
         <div className="sales-form-actions">
           <button
             onClick={saveSale}
+            disabled={!editingSaleId && selectedProduct?.stock === 0}
             style={{
               padding: '10px 22px',
-              background: sem.success.accent,
+              background: (!editingSaleId && selectedProduct?.stock === 0) ? '#ccc' : sem.success.accent,
               color: '#fff',
               border: 'none',
               borderRadius: 8,
               fontWeight: 700,
               fontSize: 14,
-              cursor: 'pointer'
+              cursor: (!editingSaleId && selectedProduct?.stock === 0) ? 'not-allowed' : 'pointer',
+              opacity: (!editingSaleId && selectedProduct?.stock === 0) ? 0.7 : 1
             }}
           >
             {editingSaleId ? 'Guardar venta' : 'Registrar venta'}

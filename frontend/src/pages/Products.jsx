@@ -17,6 +17,7 @@ export default function Products() {
     costCommission: 0,
     costOther: 0,
     margin: 30,
+    stock: 0,
     image: null
   })
   const [editingId, setEditingId] = useState(null)
@@ -130,6 +131,7 @@ export default function Products() {
       return 'No se permiten costos negativos'
     }
     if (form.margin < 0) return 'El margen no puede ser negativo'
+    if (!Number.isInteger(form.stock) || form.stock < 0) return 'El stock debe ser un entero mayor o igual a 0'
     return ''
   }
 
@@ -141,6 +143,7 @@ export default function Products() {
       costCommission: 0,
       costOther: 0,
       margin: 30,
+      stock: 0,
       image: null
     })
     setEditingId(null)
@@ -164,6 +167,7 @@ export default function Products() {
     formData.append('costCommission', form.costCommission.toString())
     formData.append('costOther', form.costOther.toString())
     formData.append('margin', form.margin.toString())
+    formData.append('stock', form.stock.toString())
     if (form.image) {
       formData.append('image', form.image)
     }
@@ -197,6 +201,7 @@ export default function Products() {
       costCommission: product.costCommission,
       costOther: product.costOther,
       margin: product.margin,
+      stock: product.stock ?? 0,
       image: null
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -451,6 +456,30 @@ export default function Products() {
           </div>
         </div>
 
+        {/* Stock */}
+        <div style={{ marginTop: 18 }}>
+          <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#444', marginBottom: 3 }}>
+            Stock disponible
+          </label>
+          <p style={{ margin: '0 0 6px', fontSize: 11, color: '#888' }}>
+            Unidades que tenes en inventario actualmente
+          </p>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={form.stock}
+            onChange={(e) => updateForm('stock', Math.floor(Number(e.target.value)))}
+            style={{
+              width: 110,
+              padding: '9px 12px',
+              border: '1.5px solid #ddd',
+              borderRadius: 8,
+              fontSize: 14
+            }}
+          />
+        </div>
+
         {/* Simulacion */}
         <div style={{
           marginTop: 20,
@@ -692,6 +721,16 @@ export default function Products() {
                         color: p.margin >= 40 ? sem.success.textStrong : p.margin >= 20 ? sem.warning.textStrong : sem.error.textStrong
                       }}>
                         {p.margin}% margen
+                      </span>
+                      <span style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        padding: '2px 10px',
+                        borderRadius: 20,
+                        background: p.stock === 0 ? sem.error.bg : p.stock <= 3 ? sem.warning.bg : sem.success.bg,
+                        color: p.stock === 0 ? sem.error.textStrong : p.stock <= 3 ? sem.warning.textStrong : sem.success.textStrong
+                      }}>
+                        {p.stock === 0 ? '❌ Sin stock' : `📦 ${p.stock} en stock`}
                       </span>
                     </div>
                   </div>
