@@ -47,8 +47,15 @@ export async function createCheckout(req, res) {
 
     const preference = new mercadopago.Preference(mercadopagoClient)
     const result = await preference.create({ body: preferencePayload })
+    const responseBody = result?.body ?? result?.response?.body
+    const checkoutUrl = responseBody?.init_point || responseBody?.sandbox_init_point
 
-    res.json({ url: result.body.init_point })
+    if (!checkoutUrl) {
+      console.error('Mercado Pago preference response missing checkout URL:', result)
+      return res.status(500).json({ error: 'No se pudo obtener la URL de checkout de Mercado Pago' })
+    }
+
+    res.json({ url: checkoutUrl })
   } catch (error) {
     console.error('Error creating Mercado Pago preference:', error)
     const message = error?.message || 'Error creando preferencia de pago'
