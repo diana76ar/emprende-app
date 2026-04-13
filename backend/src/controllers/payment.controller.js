@@ -9,6 +9,18 @@ export async function createCheckout(req, res) {
   try {
     const userId = req.user.userId
 
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    })
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' })
+    }
+
+    if (!user.email) {
+      return res.status(400).json({ error: 'El usuario no tiene email registrado' })
+    }
+
     const preferencePayload = {
       items: [
         {
@@ -21,7 +33,7 @@ export async function createCheckout(req, res) {
         }
       ],
       payer: {
-        email: req.user.email // Mercado Pago requiere email del pagador
+        email: user.email
       },
       back_urls: {
         success: `${process.env.FRONTEND_URL}/success`,
@@ -39,7 +51,8 @@ export async function createCheckout(req, res) {
     res.json({ url: result.body.init_point })
   } catch (error) {
     console.error('Error creating Mercado Pago preference:', error)
-    res.status(500).json({ error: 'Error creando preferencia de pago' })
+    const message = error?.message || 'Error creando preferencia de pago'
+    res.status(500).json({ error: message })
   }
 }
 
