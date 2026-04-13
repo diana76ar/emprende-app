@@ -34,6 +34,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [checkoutError, setCheckoutError] = useState('')
+  const [loadError, setLoadError] = useState('')
 
   const handleUpgrade = async () => {
     setCheckoutError('')
