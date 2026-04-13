@@ -47,8 +47,7 @@ export async function createCheckout(req, res) {
 
     const preference = new mercadopago.Preference(mercadopagoClient)
     const result = await preference.create({ body: preferencePayload })
-    const responseBody = result?.body ?? result?.response?.body
-    const checkoutUrl = responseBody?.init_point || responseBody?.sandbox_init_point
+    const checkoutUrl = result?.init_point || result?.sandbox_init_point
 
     if (!checkoutUrl) {
       console.error('Mercado Pago preference response missing checkout URL:', result)
