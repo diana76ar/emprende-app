@@ -29,7 +29,7 @@ export async function createCheckout(req, res) {
           description: 'Acceso ilimitado a productos y ventas',
           quantity: 1,
           currency_id: 'ARS', // Cambiar según tu país: ARS, BRL, MXN, etc.
-          unit_price: 2999, // Precio en la moneda (2999 = $29.99 ARS)
+          unit_price: 15000, // Precio en la moneda (15000 = $150.00 ARS)
         }
       ],
       payer: {

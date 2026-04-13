@@ -33,14 +33,17 @@ export default function Dashboard() {
   const [period, setPeriod] = useState('month')
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [loadError, setLoadError] = useState('')
+  const [checkoutError, setCheckoutError] = useState('')
 
   const handleUpgrade = async () => {
+    setCheckoutError('')
+
     try {
       const res = await api.post('/payment/checkout')
       window.location.href = res.data.url
     } catch (error) {
-      alert('Error al crear checkout. Intenta de nuevo.')
+      const message = error?.response?.data?.error || 'Error al crear checkout. Intenta de nuevo.'
+      setCheckoutError(message)
     }
   }
 
@@ -276,22 +279,35 @@ export default function Dashboard() {
               {data.plan === 'pro' ? '🚀 PRO' : '🆓 FREE'}
             </p>
             {data.plan === 'free' && (
-              <button 
-                onClick={handleUpgrade}
-                style={{
-                  marginTop: 8,
-                  padding: '6px 12px',
-                  borderRadius: 6,
-                  background: 'var(--primary)',
-                  color: 'white',
-                  border: 'none',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Pasar a PRO 🚀
-              </button>
+              <>
+                <button 
+                  onClick={handleUpgrade}
+                  style={{
+                    marginTop: 8,
+                    padding: '10px 16px',
+                    borderRadius: 8,
+                    background: 'var(--primary)',
+                    color: 'white',
+                    border: 'none',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    minWidth: 140
+                  }}
+                >
+                  Pasar a PRO 🚀
+                </button>
+                {checkoutError && (
+                  <p style={{
+                    margin: '10px 0 0',
+                    color: '#f87171',
+                    fontSize: 13,
+                    fontWeight: 600
+                  }}>
+                    {checkoutError}
+                  </p>
+                )}
+              </>
             )}
           </div>
         </div>
