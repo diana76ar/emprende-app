@@ -1,5 +1,6 @@
 import { prisma } from '../prisma.js'
 import { calculateProduct } from '../services/calc.service.js'
+import { PLANS } from '../config/plans.js'
 
 function validateProductInput(data) {
   const name = String(data.name || '').trim()
@@ -51,6 +52,23 @@ export async function createProduct(req, res) {
   }
 
   const data = parsed.value
+
+  // 🔥 Verificar límite de productos
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.userId }
+  })
+
+  const plan = PLANS[user.plan]
+
+  const count = await prisma.product.count({
+    where: { userId: req.user.userId }
+  })
+
+  if (count >= plan.maxProducts) {
+    return res.status(403).json({
+      error: 'Límite alcanzado. Pasate a PRO 🚀'
+    })
+  }
 
   const calc = calculateProduct(data)
 

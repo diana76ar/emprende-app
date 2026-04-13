@@ -35,6 +35,15 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const [loadError, setLoadError] = useState('')
 
+  const handleUpgrade = async () => {
+    try {
+      const res = await api.post('/payment/checkout')
+      window.location.href = res.data.url
+    } catch (error) {
+      alert('Error al crear checkout. Intenta de nuevo.')
+    }
+  }
+
   useEffect(() => {
     if (data) {
       setRefreshing(true)
@@ -262,8 +271,28 @@ export default function Dashboard() {
             </p>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <p style={{ margin: 0, fontSize: 11, color: score.status === 'good' ? sem.success.text : score.status === 'medium' ? sem.warning.text : sem.error.text, fontWeight: 600, opacity: 0.75 }}>Score</p>
-            <p style={{ margin: '4px 0 0', fontSize: 28, fontWeight: 900, lineHeight: 1, color: score.status === 'good' ? sem.success.textStrong : score.status === 'medium' ? sem.warning.textStrong : sem.error.textStrong }}>{score.value}<span style={{ fontSize: 14, fontWeight: 600, opacity: 0.6 }}>/100</span></p>
+            <p style={{ margin: 0, fontSize: 11, color: score.status === 'good' ? sem.success.text : score.status === 'medium' ? sem.warning.text : sem.error.text, fontWeight: 600, opacity: 0.75 }}>Plan actual</p>
+            <p style={{ margin: '4px 0 0', fontSize: 18, fontWeight: 800, color: score.status === 'good' ? sem.success.textStrong : score.status === 'medium' ? sem.warning.textStrong : sem.error.textStrong }}>
+              {data.plan === 'pro' ? '🚀 PRO' : '🆓 FREE'}
+            </p>
+            {data.plan === 'free' && (
+              <button 
+                onClick={handleUpgrade}
+                style={{
+                  marginTop: 8,
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  background: 'var(--primary)',
+                  color: 'white',
+                  border: 'none',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Pasar a PRO 🚀
+              </button>
+            )}
           </div>
         </div>
 

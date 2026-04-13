@@ -228,8 +228,14 @@ export async function getDashboard(req, res) {
       statusText = 'Podes mejorar'
     }
 
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { plan: true }
+    })
+
     res.json({
       period,
+      plan: user.plan,
       metrics,
       alerts,
       ranking,

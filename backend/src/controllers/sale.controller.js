@@ -1,5 +1,6 @@
 import { prisma } from '../prisma.js'
 import { calculateProduct } from '../services/calc.service.js'
+import { PLANS } from '../config/plans.js'
 
 function parseSaleInput(data) {
   const productId = String(data.productId || '')
@@ -44,6 +45,30 @@ export async function createSale(req, res) {
   }
 
   const { productId, quantity, price } = parsed.value
+
+  // 🔥 Verificar límite mensual de ventas
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.userId }
+  })
+
+  const plan = PLANS[user.plan]
+
+  const startOfMonth = new Date()
+  startOfMonth.setDate(1)
+  startOfMonth.setHours(0, 0, 0, 0)
+
+  const salesCount = await prisma.sale.count({
+    where: {
+      userId: req.user.userId,
+      date: { gte: startOfMonth }
+    }
+  })
+
+  if (salesCount >= plan.maxSalesPerMonth) {
+    return res.status(403).json({
+      error: 'Superaste el límite mensual. Upgrade necesario.'
+    })
+  }
 
   const product = await prisma.product.findFirst({
     where: {
