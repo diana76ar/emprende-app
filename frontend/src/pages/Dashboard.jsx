@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import {
   ResponsiveContainer, BarChart, Bar,
   XAxis, YAxis, Tooltip, CartesianGrid
@@ -35,6 +35,26 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const [checkoutError, setCheckoutError] = useState('')
   const [loadError, setLoadError] = useState('')
+  const initialLoadRef = useRef(true)
+
+  const loadDashboard = async (p = period) => {
+    try {
+      if (data) {
+        setRefreshing(true)
+      } else {
+        setLoading(true)
+      }
+      setLoadError('')
+
+      const res = await api.get(`/dashboard?period=${p}`)
+      setData(res.data)
+    } catch (error) {
+      setLoadError('No se pudo cargar el dashboard')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
 
   const handleUpgrade = async () => {
     setCheckoutError('')
@@ -48,22 +68,18 @@ export default function Dashboard() {
     }
   }
 
+  // Cargar datos cuando cambia el período
   useEffect(() => {
-    if (data) {
-      setRefreshing(true)
-    } else {
-      setLoading(true)
-    }
-    setLoadError('')
-
-    api.get(`/dashboard?period=${period}`)
-      .then((res) => setData(res.data))
-      .catch(() => setLoadError('No se pudo cargar el dashboard'))
-      .finally(() => {
-        setLoading(false)
-        setRefreshing(false)
-      })
+    loadDashboard(period)
   }, [period])
+
+  // Cargar datos iniciales o detectar regreso de pago exitoso
+  useEffect(() => {
+    if (initialLoadRef.current && data === null) {
+      initialLoadRef.current = false
+      loadDashboard()
+    }
+  }, [])
 
   const periodLabels = {
     today: 'Hoy',
@@ -213,6 +229,10 @@ export default function Dashboard() {
           50% { opacity: 1; transform: scale(1); }
           100% { opacity: .35; transform: scale(.8); }
         }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
         .dash-chart-wrap {
           background: var(--surface);
           border: 1px solid var(--border);
@@ -274,43 +294,53 @@ export default function Dashboard() {
               {score.status === 'good' ? '🟢' : score.status === 'medium' ? '🟡' : '🔴'} {score.statusText}
             </p>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ margin: 0, fontSize: 11, color: score.status === 'good' ? sem.success.text : score.status === 'medium' ? sem.warning.text : sem.error.text, fontWeight: 600, opacity: 0.75 }}>Plan actual</p>
-            <p style={{ margin: '4px 0 0', fontSize: 18, fontWeight: 800, color: score.status === 'good' ? sem.success.textStrong : score.status === 'medium' ? sem.warning.textStrong : sem.error.textStrong }}>
-              {data.plan === 'pro' ? '🚀 PRO' : '🆓 FREE'}
+          {data.plan === 'free' && (
+            <button 
+              onClick={handleUpgrade}
+              style={{
+                padding: '12px 20px',
+                borderRadius: 8,
+                background: '#3b82f6',
+                color: 'white',
+                border: '2px solid #2563eb',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer',
+                minWidth: 160,
+                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+                transition: 'all 0.2s ease',
+                whiteSpace: 'nowrap'
+              }}
+              onMouseOver={(e) => {
+                e.target.style.background = '#2563eb'
+                e.target.style.boxShadow = '0 6px 16px rgba(59, 130, 246, 0.4)'
+              }}
+              onMouseOut={(e) => {
+                e.target.style.background = '#3b82f6'
+                e.target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)'
+              }}
+            >
+              Pasar a PRO 🚀
+            </button>
+          )}
+          {data.plan === 'pro' && (
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#10b981', opacity: 0.8 }}>PLAN ACTUAL</p>
+              <p style={{ margin: '4px 0 0', fontSize: 18, fontWeight: 800, color: '#10b981' }}>
+                🚀 PRO
+              </p>
+            </div>
+          )}
+          {checkoutError && (
+            <p style={{
+              margin: 0,
+              color: '#f87171',
+              fontSize: 13,
+              fontWeight: 600
+            }}>
+              {checkoutError}
             </p>
-            {data.plan === 'free' && (
-              <>
-                <button 
-                  onClick={handleUpgrade}
-                  style={{
-                    marginTop: 8,
-                    padding: '10px 16px',
-                    borderRadius: 8,
-                    background: 'var(--primary)',
-                    color: 'white',
-                    border: 'none',
-                    fontSize: 14,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    minWidth: 140
-                  }}
-                >
-                  Pasar a PRO 🚀
-                </button>
-                {checkoutError && (
-                  <p style={{
-                    margin: '10px 0 0',
-                    color: '#f87171',
-                    fontSize: 13,
-                    fontWeight: 600
-                  }}>
-                    {checkoutError}
-                  </p>
-                )}
-              </>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Barra de progreso */}
