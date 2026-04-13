@@ -138,6 +138,11 @@ export default function Dashboard() {
   const healthScore = score.value
   const healthColor = score.status === 'good' ? 'var(--success-accent)' : score.status === 'medium' ? 'var(--warning-accent)' : 'var(--error-accent)'
   const healthLabel = score.status === 'good' ? 'alta' : score.status === 'medium' ? 'media' : 'baja'
+  const hasDashboardData =
+    data.metrics?.salesCount > 0 ||
+    data.ranking?.length > 0 ||
+    data.alerts?.length > 0 ||
+    data.insights?.some((insight) => insight.type !== 'no_sales')
 
   return (
     <div style={{ maxWidth: uiTokens.dashboardMaxWidth, margin: '0 auto', padding: uiTokens.pagePadding }}>
@@ -279,108 +284,109 @@ export default function Dashboard() {
           </div>
         )}
 
-      {/* 🧠 BANNER DIAGNÓSTICO */}
-      <div className="dash-reveal dash-card" style={{
-        marginBottom: 20,
-        padding: '20px 22px',
-        borderRadius: uiTokens.panelRadius,
-        background: score.status === 'good' ? sem.success.bg : score.status === 'medium' ? sem.warning.bg : sem.error.bg,
-        border: `1px solid ${score.status === 'good' ? sem.success.border : score.status === 'medium' ? sem.warning.border : sem.error.border}`,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
-          <div>
-            <p style={{ margin: 0, fontSize: 11, fontWeight: 600, letterSpacing: '.5px', textTransform: 'uppercase', color: score.status === 'good' ? sem.success.text : score.status === 'medium' ? sem.warning.text : sem.error.text, opacity: 0.75 }}>Diagnóstico del negocio</p>
-            <p style={{ margin: '5px 0 0', fontSize: 18, fontWeight: 800, color: score.status === 'good' ? sem.success.textStrong : score.status === 'medium' ? sem.warning.textStrong : sem.error.textStrong }}>
-              {score.status === 'good' ? '🟢' : score.status === 'medium' ? '🟡' : '🔴'} {score.statusText}
-            </p>
-          </div>
-          {data.plan === 'free' && (
-            <button 
-              onClick={handleUpgrade}
-              style={{
-                padding: '12px 20px',
-                borderRadius: 8,
-                background: '#3b82f6',
-                color: 'white',
-                border: '2px solid #2563eb',
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: 'pointer',
-                minWidth: 160,
-                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
-                transition: 'all 0.2s ease',
-                whiteSpace: 'nowrap'
-              }}
-              onMouseOver={(e) => {
-                e.target.style.background = '#2563eb'
-                e.target.style.boxShadow = '0 6px 16px rgba(59, 130, 246, 0.4)'
-              }}
-              onMouseOut={(e) => {
-                e.target.style.background = '#3b82f6'
-                e.target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)'
-              }}
-            >
-              Pasar a PRO 🚀
-            </button>
-          )}
-          {data.plan === 'pro' && (
-            <div style={{ textAlign: 'right' }}>
-              <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#10b981', opacity: 0.8 }}>PLAN ACTUAL</p>
-              <p style={{ margin: '4px 0 0', fontSize: 18, fontWeight: 800, color: '#10b981' }}>
-                🚀 PRO
+      {hasDashboardData && (
+        <div className="dash-reveal dash-card" style={{
+          marginBottom: 20,
+          padding: '20px 22px',
+          borderRadius: uiTokens.panelRadius,
+          background: score.status === 'good' ? sem.success.bg : score.status === 'medium' ? sem.warning.bg : sem.error.bg,
+          border: `1px solid ${score.status === 'good' ? sem.success.border : score.status === 'medium' ? sem.warning.border : sem.error.border}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
+            <div>
+              <p style={{ margin: 0, fontSize: 11, fontWeight: 600, letterSpacing: '.5px', textTransform: 'uppercase', color: score.status === 'good' ? sem.success.text : score.status === 'medium' ? sem.warning.text : sem.error.text, opacity: 0.75 }}>Diagnóstico del negocio</p>
+              <p style={{ margin: '5px 0 0', fontSize: 18, fontWeight: 800, color: score.status === 'good' ? sem.success.textStrong : score.status === 'medium' ? sem.warning.textStrong : sem.error.textStrong }}>
+                {score.status === 'good' ? '🟢' : score.status === 'medium' ? '🟡' : '🔴'} {score.statusText}
               </p>
             </div>
-          )}
-          {checkoutError && (
-            <p style={{
-              margin: 0,
-              color: '#f87171',
-              fontSize: 13,
-              fontWeight: 600
-            }}>
-              {checkoutError}
-            </p>
-          )}
-        </div>
-
-        {/* Barra de progreso */}
-        <div style={{ height: 8, borderRadius: 999, background: 'rgba(0,0,0,0.10)', overflow: 'hidden', marginBottom: 14 }}>
-          <div style={{
-            height: '100%',
-            width: `${score.value}%`,
-            borderRadius: 999,
-            background: score.status === 'good'
-              ? 'linear-gradient(90deg, var(--success-accent), #34d399)'
-              : score.status === 'medium'
-              ? 'linear-gradient(90deg, var(--warning-accent), #fbbf24)'
-              : 'linear-gradient(90deg, var(--error-accent), #f87171)',
-            transition: 'width 0.8s cubic-bezier(.4,0,.2,1)'
-          }} />
-        </div>
-
-        {/* Explicación del score */}
-        {score.details?.length > 0 && (
-          <div>
-            <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, letterSpacing: '.4px', textTransform: 'uppercase', color: score.status === 'good' ? sem.success.text : score.status === 'medium' ? sem.warning.text : sem.error.text, opacity: 0.7 }}>
-              ¿Por qué este score?
-            </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px' }}>
-              {score.details.map((d, i) => (
-                <span key={i} style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: score.status === 'good' ? sem.success.textStrong : score.status === 'medium' ? sem.warning.textStrong : sem.error.textStrong,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5
-                }}>
-                  <span style={{ fontSize: 10, opacity: 0.7 }}>✓</span> {d}
-                </span>
-              ))}
-            </div>
+            {data.plan === 'free' && (
+              <button 
+                onClick={handleUpgrade}
+                style={{
+                  padding: '12px 20px',
+                  borderRadius: 8,
+                  background: '#3b82f6',
+                  color: 'white',
+                  border: '2px solid #2563eb',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  minWidth: 160,
+                  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+                  transition: 'all 0.2s ease',
+                  whiteSpace: 'nowrap'
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.background = '#2563eb'
+                  e.target.style.boxShadow = '0 6px 16px rgba(59, 130, 246, 0.4)'
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.background = '#3b82f6'
+                  e.target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)'
+                }}
+              >
+                Pasar a PRO 🚀
+              </button>
+            )}
+            {data.plan === 'pro' && (
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#10b981', opacity: 0.8 }}>PLAN ACTUAL</p>
+                <p style={{ margin: '4px 0 0', fontSize: 18, fontWeight: 800, color: '#10b981' }}>
+                  🚀 PRO
+                </p>
+              </div>
+            )}
+            {checkoutError && (
+              <p style={{
+                margin: 0,
+                color: '#f87171',
+                fontSize: 13,
+                fontWeight: 600
+              }}>
+                {checkoutError}
+              </p>
+            )}
           </div>
-        )}
-      </div>
+
+          {/* Barra de progreso */}
+          <div style={{ height: 8, borderRadius: 999, background: 'rgba(0,0,0,0.10)', overflow: 'hidden', marginBottom: 14 }}>
+            <div style={{
+              height: '100%',
+              width: `${score.value}%`,
+              borderRadius: 999,
+              background: score.status === 'good'
+                ? 'linear-gradient(90deg, var(--success-accent), #34d399)'
+                : score.status === 'medium'
+                ? 'linear-gradient(90deg, var(--warning-accent), #fbbf24)'
+                : 'linear-gradient(90deg, var(--error-accent), #f87171)',
+              transition: 'width 0.8s cubic-bezier(.4,0,.2,1)'
+            }} />
+          </div>
+
+          {/* Explicación del score */}
+          {score.details?.length > 0 && (
+            <div>
+              <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, letterSpacing: '.4px', textTransform: 'uppercase', color: score.status === 'good' ? sem.success.text : score.status === 'medium' ? sem.warning.text : sem.error.text, opacity: 0.7 }}>
+                ¿Por qué este score?
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px' }}>
+                {score.details.map((d, i) => (
+                  <span key={i} style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: score.status === 'good' ? sem.success.textStrong : score.status === 'medium' ? sem.warning.textStrong : sem.error.textStrong,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5
+                  }}>
+                    <span style={{ fontSize: 10, opacity: 0.7 }}>✓</span> {d}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="dash-reveal" style={{
         borderRadius: uiTokens.panelRadiusLg,

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import api from '../services/api'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -9,7 +9,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
-  async function handleLogin() {
+  async function handleLogin(event) {
+    event.preventDefault()
     setError('')
     setLoading(true)
     try {
@@ -17,73 +18,57 @@ export default function Login() {
       localStorage.setItem('token', res.data.token)
       navigate('/dashboard')
     } catch {
-      setError('Credenciales invalidas. Verifica email y password.')
+      setError('Credenciales inválidas. Verifica email y contraseña.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 16 }}>
-      <div style={{
-        width: '100%',
-        maxWidth: 420,
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: 14,
-        padding: '26px 22px',
-        boxShadow: 'var(--shadow-md)'
-      }}>
-        <h2 style={{ margin: 0, fontSize: 28, color: 'var(--text)' }}>Ingresar</h2>
-        <p style={{ margin: '6px 0 18px', color: 'var(--muted)', fontSize: 14 }}>
-          Accede para gestionar ventas, productos y dashboard
-        </p>
-
-        <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, color: 'var(--text)', fontSize: 13 }}>
-          Email
-        </label>
-        <input
-          placeholder="tu@email.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', marginBottom: 14, background: 'var(--surface)', color: 'var(--text)' }}
-        />
-
-        <label style={{ display: 'block', marginBottom: 6, fontWeight: 600, color: 'var(--text)', fontSize: 13 }}>
-          Password
-        </label>
-        <input
-          type="password"
-          placeholder="********"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
-        />
-
-        {error && (
-          <div style={{ marginTop: 12, border: '1px solid #ef9a9a', background: '#fdecea', color: '#b91c1c', borderRadius: 10, padding: '9px 10px', fontSize: 13 }}>
-            {error}
+    <div className="auth-shell">
+      <div className="auth-card">
+        <div className="auth-brand">
+          <div className="brand-mark">E</div>
+          <div className="brand-copy">
+            <p className="brand-title">Emprende</p>
+            <p className="brand-subtitle">Control de ventas, productos y clientes</p>
           </div>
-        )}
+        </div>
 
-        <button
-          onClick={handleLogin}
-          disabled={loading}
-          style={{
-            marginTop: 16,
-            width: '100%',
-            padding: '11px 14px',
-            borderRadius: 10,
-            border: 'none',
-            background: 'linear-gradient(135deg, #2463eb 0%, #0ea5e9 100%)',
-            color: '#fff',
-            fontWeight: 700,
-            cursor: loading ? 'not-allowed' : 'pointer',
-            opacity: loading ? 0.7 : 1
-          }}
-        >
-          {loading ? 'Ingresando...' : 'Ingresar'}
-        </button>
+        <div className="auth-header">
+          <h2>Bienvenido de nuevo</h2>
+          <p>Accede a tu panel y comienza a gestionar tu negocio con claridad.</p>
+        </div>
+
+        <form onSubmit={handleLogin}>
+          <label className="form-label">Email</label>
+          <input
+            type="email"
+            placeholder="hola@tuempresa.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="form-input"
+          />
+
+          <label className="form-label">Contraseña</label>
+          <input
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="form-input"
+          />
+
+          {error && <div className="auth-alert auth-alert-error">{error}</div>}
+
+          <button className="button-primary" type="submit" disabled={loading}>
+            {loading ? 'Ingresando...' : 'Ingresar'}
+          </button>
+        </form>
+
+        <div className="auth-footer">
+          <p>¿Aún no tienes cuenta? <Link to="/register" className="auth-link">Regístrate</Link></p>
+        </div>
       </div>
     </div>
   )

@@ -3,6 +3,7 @@ import Layout from './components/Layout'
 import { ToastProvider } from './components/ToastProvider'
 
 import Login from './pages/Login'
+import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Products from './pages/Products'
 import Sales from './pages/Sales'
@@ -17,6 +18,7 @@ function App() {
 
           {/* LOGIN sin layout */}
           <Route path="/" element={<Login />} />
+          <Route path="/register" element={<Register />} />
 
           {/* CON layout */}
           <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />

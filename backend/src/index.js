@@ -15,6 +15,8 @@ const app = express() // 🔴 ESTA LÍNEA FALTABA
 app.use(cors())
 app.use(express.json())
 
+app.use('/uploads', express.static('uploads'))
+
 app.use('/auth', authRoutes)
 app.use('/products', productRoutes)
 app.use('/sales', saleRoutes)

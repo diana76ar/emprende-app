@@ -26,7 +26,8 @@ model Product {
   costCommission  Float
   costOther Float
   margin    Float
-  userId    String
+    imageUrl String?
+    userId    String
   user      User @relation(fields: [userId], references: [id])
   sales     Sale[]
 }

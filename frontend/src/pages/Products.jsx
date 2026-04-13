@@ -6,6 +6,9 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { uiTokens, sem } from '../styles/uiTokens'
 
 export default function Products() {
+  const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
+  const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg']
+
   const [products, setProducts] = useState([])
   const [form, setForm] = useState({
     name: '',
@@ -13,7 +16,8 @@ export default function Products() {
     costShipping: 0,
     costCommission: 0,
     costOther: 0,
-    margin: 30
+    margin: 30,
+    image: null
   })
   const [editingId, setEditingId] = useState(null)
   const [error, setError] = useState('')
@@ -86,6 +90,36 @@ export default function Products() {
     setForm((current) => ({ ...current, [field]: value }))
   }
 
+  function handleImageChange(event) {
+    const file = event.target.files?.[0] || null
+
+    if (!file) {
+      updateForm('image', null)
+      return
+    }
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      const message = 'Formato no valido. Usa JPG, PNG o WEBP.'
+      setError(message)
+      toast.error(message)
+      event.target.value = ''
+      updateForm('image', null)
+      return
+    }
+
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      const message = 'La imagen supera 5MB.'
+      setError(message)
+      toast.error(message)
+      event.target.value = ''
+      updateForm('image', null)
+      return
+    }
+
+    setError('')
+    updateForm('image', file)
+  }
+
   function validate() {
     if (!form.name.trim()) return 'El nombre es obligatorio'
     if (form.costBase <= 0) return 'El costo base debe ser mayor a 0'
@@ -106,7 +140,8 @@ export default function Products() {
       costShipping: 0,
       costCommission: 0,
       costOther: 0,
-      margin: 30
+      margin: 30,
+      image: null
     })
     setEditingId(null)
     setAnalysis(null)
@@ -121,15 +156,19 @@ export default function Products() {
       return
     }
 
-    const payload = {
-      name: form.name.trim(),
-      type: 'reventa',
-      costBase: form.costBase,
-      costShipping: form.costShipping,
-      costCommission: form.costCommission,
-      costOther: form.costOther,
-      margin: form.margin
+    const formData = new FormData()
+    formData.append('name', form.name.trim())
+    formData.append('type', 'reventa')
+    formData.append('costBase', form.costBase.toString())
+    formData.append('costShipping', form.costShipping.toString())
+    formData.append('costCommission', form.costCommission.toString())
+    formData.append('costOther', form.costOther.toString())
+    formData.append('margin', form.margin.toString())
+    if (form.image) {
+      formData.append('image', form.image)
     }
+    
+    const payload = formData
 
     try {
       const wasEditing = Boolean(editingId)
@@ -157,7 +196,8 @@ export default function Products() {
       costShipping: product.costShipping,
       costCommission: product.costCommission,
       costOther: product.costOther,
-      margin: product.margin
+      margin: product.margin,
+      image: null
     })
     window.scrollTo({ top: 0, behavior: 'smooth' })
     toast.info('Modo edicion activado')
@@ -318,6 +358,35 @@ export default function Products() {
               outline: 'none'
             }}
           />
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#444', marginBottom: 4 }}>
+            Foto del producto
+          </label>
+          <p style={{ margin: '0 0 6px', fontSize: 11, color: '#888' }}>
+            Podes elegir una imagen de la galeria o sacar una foto con la camara
+          </p>
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleImageChange}
+            style={{
+              width: '100%',
+              padding: '9px 12px',
+              border: '1.5px solid #ddd',
+              borderRadius: 8,
+              fontSize: 14,
+              boxSizing: 'border-box',
+              background: '#fff'
+            }}
+          />
+          {form.image && (
+            <p style={{ margin: '6px 0 0', fontSize: 12, color: '#555' }}>
+              Archivo seleccionado: <strong>{form.image.name}</strong>
+            </p>
+          )}
         </div>
 
         {/* Grid de costos */}
@@ -572,27 +641,59 @@ export default function Products() {
                 padding: '16px 20px',
                 boxShadow: '0 1px 6px rgba(0,0,0,0.07)',
               }} className="products-list-item">
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: '#222', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {p.name}
-                  </p>
-                  <div style={{ display: 'flex', gap: 16, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontSize: 13, color: '#555' }}>
-                      Costo: <strong>{formatMoney(costo)}</strong>
-                    </span>
-                    <span style={{ fontSize: 13, color: '#1565c0' }}>
-                      Precio sugerido: <strong>{formatMoney(precioSug)}</strong>
-                    </span>
-                    <span style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      padding: '2px 10px',
-                      borderRadius: 20,
-                      background: p.margin >= 40 ? sem.success.bg : p.margin >= 20 ? sem.warning.bg : sem.error.bg,
-                      color: p.margin >= 40 ? sem.success.textStrong : p.margin >= 20 ? sem.warning.textStrong : sem.error.textStrong
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                  {p.imageUrl ? (
+                    <img
+                      src={`${import.meta.env.VITE_API_URL}${p.imageUrl}`}
+                      alt={p.name}
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 8,
+                        objectFit: 'cover',
+                        border: '1px solid #e0e0e0',
+                        flexShrink: 0
+                      }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 8,
+                      background: '#f5f5f5',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#999',
+                      fontSize: 18,
+                      border: '1px solid #e0e0e0',
+                      flexShrink: 0
                     }}>
-                      {p.margin}% margen
-                    </span>
+                      📦
+                    </div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: '#222', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {p.name}
+                    </p>
+                    <div style={{ display: 'flex', gap: 16, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, color: '#555' }}>
+                        Costo: <strong>{formatMoney(costo)}</strong>
+                      </span>
+                      <span style={{ fontSize: 13, color: '#1565c0' }}>
+                        Precio sugerido: <strong>{formatMoney(precioSug)}</strong>
+                      </span>
+                      <span style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        padding: '2px 10px',
+                        borderRadius: 20,
+                        background: p.margin >= 40 ? sem.success.bg : p.margin >= 20 ? sem.warning.bg : sem.error.bg,
+                        color: p.margin >= 40 ? sem.success.textStrong : p.margin >= 20 ? sem.warning.textStrong : sem.error.textStrong
+                      }}>
+                        {p.margin}% margen
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div className="products-list-actions">
