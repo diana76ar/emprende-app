@@ -1,15 +1,15 @@
 import mercadopago from 'mercadopago'
 import { prisma } from '../prisma.js'
 
-mercadopago.configure({
-  access_token: process.env.MERCADO_PAGO_ACCESS_TOKEN
+const mercadopagoClient = new mercadopago.MercadoPagoConfig({
+  accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN
 })
 
 export async function createCheckout(req, res) {
   try {
     const userId = req.user.userId
 
-    const preference = {
+    const preferencePayload = {
       items: [
         {
           id: 'pro_subscription',
@@ -33,7 +33,8 @@ export async function createCheckout(req, res) {
       notification_url: `${process.env.BACKEND_URL}/payment/webhook`
     }
 
-    const result = await mercadopago.preferences.create(preference)
+    const preference = new mercadopago.Preference(mercadopagoClient)
+    const result = await preference.create({ body: preferencePayload })
 
     res.json({ url: result.body.init_point })
   } catch (error) {
@@ -49,8 +50,8 @@ export async function handleWebhook(req, res) {
     if (type === 'payment') {
       const paymentId = data.id
 
-      // Obtener detalles del pago
-      const payment = await mercadopago.payment.get(paymentId)
+      const paymentService = new mercadopago.Payment(mercadopagoClient)
+      const payment = await paymentService.get({ id: paymentId })
 
       if (payment.body.status === 'approved') {
         const userId = payment.body.external_reference
