@@ -32,9 +32,9 @@ function parseSaleInput(data) {
   }
 }
 
-function calcProfit(product, price, quantity) {
+function calcProfit(product, totalSalePrice, quantity) {
   const totalCost = product.costBase + product.costShipping + product.costCommission + product.costOther
-  return (price - totalCost) * quantity
+  return totalSalePrice - (totalCost * quantity)
 }
 
 export async function createSale(req, res) {
@@ -60,7 +60,7 @@ export async function createSale(req, res) {
     })
 
     if (salesCount >= plan.maxSalesPerMonth) {
-      return res.status(403).json({ error: 'Superaste el límite mensual. Upgrade necesario.' })
+      return res.status(403).json({ error: 'Llegaste al limite del plan FREE. Con PRO desbloqueas ventas ilimitadas, metricas completas y recomendaciones inteligentes 🚀' })
     }
 
     // 1. Buscar producto

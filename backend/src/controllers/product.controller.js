@@ -121,7 +121,7 @@ export async function createProduct(req, res) {
 
     if (count >= plan.maxProducts) {
       return res.status(403).json({
-        error: 'Límite alcanzado. Pasate a PRO 🚀'
+        error: 'Llegaste al limite del plan FREE. Con PRO desbloqueas productos ilimitados y metricas completas 🚀'
       })
     }
 

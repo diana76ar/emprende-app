@@ -4,6 +4,7 @@ import { formatMoney } from '../utils/currency'
 import { useToast } from '../components/ToastProvider'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { uiTokens, sem } from '../styles/uiTokens'
+import { usePricingModal } from '../components/PricingModal'
 
 function calcProduct(p) {
   if (!p) return null
@@ -23,10 +24,12 @@ export default function Sales() {
   const [error, setError] = useState('')
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
   const toast = useToast()
+  const { openPricingModal } = usePricingModal()
 
   const selectedProduct = products.find((p) => p.id === productId) ?? null
   const ref = calcProduct(selectedProduct)
-  const liveProfit = ref && price > 0 ? (price - ref.totalCost) * quantity : null
+  const liveProfit = ref && price > 0 ? price - (ref.totalCost * quantity) : null
+  const unitSalePrice = quantity > 0 ? price / quantity : 0
 
   useEffect(() => {
     load()
@@ -89,6 +92,10 @@ export default function Sales() {
       load()
       toast.success(wasEditing ? 'Venta actualizada' : 'Venta registrada')
     } catch (requestError) {
+      if (requestError.response?.status === 403) {
+        openPricingModal()
+        return
+      }
       const messageFromApi = requestError.response?.data?.error || 'No se pudo guardar la venta'
       setError(messageFromApi)
       toast.error(messageFromApi)
@@ -207,7 +214,7 @@ export default function Sales() {
       <div style={{ marginBottom: 28 }}>
         <h1 className="sales-title">Ventas</h1>
         <p className="sales-subtitle">
-          Registrá ventas y controlá la ganancia real por operación
+          Registra tus ventas y descubri cuanto estas ganando realmente
         </p>
       </div>
 
@@ -335,6 +342,11 @@ export default function Sales() {
                 boxSizing: 'border-box'
               }}
             />
+            {quantity > 0 && price > 0 && (
+              <p style={{ margin: '6px 0 0', fontSize: 12, color: '#607085' }}>
+                Precio por unidad estimado: <strong>{formatMoney(unitSalePrice)}</strong>
+              </p>
+            )}
           </div>
         </div>
 
@@ -424,7 +436,7 @@ export default function Sales() {
                 <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 4, fontSize: 13, color: '#5f6368' }}>
                   <span>{new Date(sale.date).toLocaleDateString('es-AR')}</span>
                   <span>Cant: <strong>{sale.quantity}</strong></span>
-                  <span>Precio: <strong>{formatMoney(sale.price)}</strong></span>
+                  <span>Precio total: <strong>{formatMoney(sale.price)}</strong></span>
                   <span style={{ color: sale.profit >= 0 ? sem.success.textStrong : sem.error.textStrong }}>
                     Ganancia: <strong>{formatMoney(sale.profit)}</strong>
                   </span>

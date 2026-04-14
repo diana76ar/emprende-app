@@ -6,6 +6,7 @@ import {
 import api from '../services/api'
 import { formatMoney } from '../utils/currency'
 import { uiTokens, sem } from '../styles/uiTokens'
+import { usePricingModal } from '../components/PricingModal'
 
 function ProfitTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
@@ -36,6 +37,7 @@ export default function Dashboard() {
   const [checkoutError, setCheckoutError] = useState('')
   const [loadError, setLoadError] = useState('')
   const initialLoadRef = useRef(true)
+  const { openPricingModal, closePricingModal } = usePricingModal()
 
   const loadDashboard = async (p = period) => {
     try {
@@ -68,6 +70,10 @@ export default function Dashboard() {
     }
   }
 
+  function openModal() {
+    openPricingModal()
+  }
+
   // Cargar datos cuando cambia el período
   useEffect(() => {
     loadDashboard(period)
@@ -90,13 +96,6 @@ export default function Dashboard() {
 
   const alertMeta = {
     low_margin: { icon: '⚠', bg: sem.warning.bg, border: sem.warning.accent, textHead: sem.warning.text, textBody: sem.warning.text, title: 'Margen bajo detectado' }
-  }
-
-  const insightMeta = {
-    low_margin:  { icon: '↑', bg: sem.warning.bg,  border: sem.warning.accent,  textHead: sem.warning.text,  textBody: sem.warning.text,  title: 'Ajustar precios' },
-    dependency:  { icon: '⚡', bg: sem.error.bg,    border: sem.error.accent,    textHead: sem.error.text,    textBody: sem.error.text,    title: 'Dependencia alta' },
-    opportunity: { icon: '★', bg: sem.success.bg,  border: sem.success.accent,  textHead: sem.success.text,  textBody: sem.success.text,  title: 'Oportunidad de crecimiento' },
-    no_sales:    { icon: '○', bg: sem.info.bg,     border: sem.info.accent,     textHead: sem.info.text,     textBody: sem.info.text,     title: 'Sin actividad' }
   }
 
   if (loading) {
@@ -134,15 +133,55 @@ export default function Dashboard() {
   if (!data) return null
 
   const topProfit = data.ranking?.length > 0 ? data.ranking[0].profit : 0
-  const score = data.score ?? { value: 0, status: 'low', statusText: 'Sin datos', details: [] }
-  const healthScore = score.value
-  const healthColor = score.status === 'good' ? 'var(--success-accent)' : score.status === 'medium' ? 'var(--warning-accent)' : 'var(--error-accent)'
-  const healthLabel = score.status === 'good' ? 'alta' : score.status === 'medium' ? 'media' : 'baja'
+  const score = Number(data.score ?? 0)
+  const scoreStatus = score >= 70 ? 'good' : score >= 40 ? 'medium' : 'low'
+  const scoreStatusText = score >= 70 ? 'Estas creciendo bien' : score >= 40 ? 'Podes mejorar' : 'Riesgo de rentabilidad'
+  const healthColor = scoreStatus === 'good' ? 'var(--success-accent)' : scoreStatus === 'medium' ? 'var(--warning-accent)' : 'var(--error-accent)'
+  const healthLabel = scoreStatus === 'good' ? 'alta' : scoreStatus === 'medium' ? 'media' : 'baja'
+  const comparison = data.comparison || {
+    currentMonthRevenue: 0,
+    previousMonthRevenue: 0,
+    revenueDeltaPct: 0,
+    currentMonthProfit: 0,
+    previousMonthProfit: 0,
+    profitDeltaPct: 0
+  }
+  const revenueTrend = getTrendMeta(comparison.revenueDeltaPct)
+  const profitTrend = getTrendMeta(comparison.profitDeltaPct)
+  const insightList = Array.isArray(data.insights) ? data.insights : []
   const hasDashboardData =
     data.metrics?.salesCount > 0 ||
     data.ranking?.length > 0 ||
     data.alerts?.length > 0 ||
-    data.insights?.some((insight) => insight.type !== 'no_sales')
+    insightList.length > 0
+  const noSalesYet = (data.metrics?.salesCount ?? 0) === 0
+  const prioritizeRisk = revenueTrend.label === 'En baja' || profitTrend.label === 'En baja'
+  const kpiOrder = prioritizeRisk
+    ? {
+      revenueDelta: 1,
+      profitDelta: 2,
+      totalProfit: 3,
+      totalRevenue: 4,
+      avgMargin: 5,
+      salesCount: 6,
+      avgTicket: 7,
+      topProduct: 8
+    }
+    : {
+      totalRevenue: 1,
+      revenueDelta: 2,
+      totalProfit: 3,
+      salesCount: 4,
+      avgTicket: 5,
+      avgMargin: 6,
+      profitDelta: 7,
+      topProduct: 8
+    }
+  const kpiMotion = (slot) => ({
+    order: kpiOrder[slot],
+    animation: 'dash-kpi-priority .42s ease both',
+    animationDelay: `${kpiOrder[slot] * 0.035}s`
+  })
 
   return (
     <div style={{ maxWidth: uiTokens.dashboardMaxWidth, margin: '0 auto', padding: uiTokens.pagePadding }}>
@@ -234,6 +273,16 @@ export default function Dashboard() {
           50% { opacity: 1; transform: scale(1); }
           100% { opacity: .35; transform: scale(.8); }
         }
+        @keyframes dash-kpi-priority {
+          from {
+            opacity: 0;
+            transform: translateY(8px) scale(.985);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
@@ -247,8 +296,36 @@ export default function Dashboard() {
         .dash-chart-wrap .recharts-cartesian-grid-horizontal line {
           stroke: var(--border);
         }
+        .dash-pricing-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(15, 23, 42, 0.62);
+          z-index: 1200;
+          display: grid;
+          place-items: center;
+          padding: 16px;
+          backdrop-filter: blur(2px);
+        }
+        .dash-pricing-modal {
+          width: min(840px, 100%);
+          background: #fff;
+          border-radius: 16px;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 20px 60px rgba(2, 6, 23, 0.25);
+          padding: 18px;
+          animation: dash-fade-up .22s ease both;
+        }
+        .dash-pricing-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+          margin-top: 14px;
+        }
         @media (max-width: 900px) {
           .dash-two-col {
+            grid-template-columns: 1fr;
+          }
+          .dash-pricing-grid {
             grid-template-columns: 1fr;
           }
         }
@@ -284,24 +361,83 @@ export default function Dashboard() {
           </div>
         )}
 
+      <div className="dash-reveal" style={{
+        background: '#111827',
+        color: '#fff',
+        padding: '14px 16px',
+        borderRadius: 12,
+        marginBottom: 14,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        flexWrap: 'wrap'
+      }}>
+        <strong>Plan actual: {(data.plan || 'free').toUpperCase()}</strong>
+        {data.plan === 'free' && (
+          <span style={{ fontSize: 12, opacity: 0.85 }}>
+            FREE: hasta 5 productos y 20 ventas/mes · PRO: $15.000/mes
+          </span>
+        )}
+        {data.plan === 'pro' && (
+          <span style={{ fontSize: 12, opacity: 0.85 }}>
+            PRO activo · ventas y productos ilimitados
+          </span>
+        )}
+        <button
+          onClick={openModal}
+          style={{
+            marginLeft: 'auto',
+            border: '1px solid rgba(255,255,255,.28)',
+            background: 'rgba(255,255,255,.08)',
+            color: '#fff',
+            borderRadius: 8,
+            fontWeight: 700,
+            fontSize: 12,
+            padding: '7px 10px',
+            cursor: 'pointer'
+          }}
+        >
+          Ver planes
+        </button>
+      </div>
+
+      <div className="dash-reveal" style={{
+        background: '#fff',
+        border: '1px solid #e2e8f0',
+        borderRadius: 12,
+        padding: '16px 18px',
+        marginBottom: 14
+      }}>
+        <h3 style={{ margin: 0, fontSize: 20, color: '#0f172a' }}>Deja de vender a ciegas</h3>
+        <p style={{ margin: '6px 0 0', color: '#475569' }}>
+          Registra tus ventas y descubri cuanto estas ganando realmente.
+        </p>
+        <p style={{ margin: '10px 0 0', color: '#0f172a', fontWeight: 600 }}>
+          Tu negocio en numeros: hoy estas generando {formatMoney(data.metrics?.totalProfit || 0)} en ganancias.
+        </p>
+      </div>
+
       {hasDashboardData && (
         <div className="dash-reveal dash-card" style={{
           marginBottom: 20,
           padding: '20px 22px',
           borderRadius: uiTokens.panelRadius,
-          background: score.status === 'good' ? sem.success.bg : score.status === 'medium' ? sem.warning.bg : sem.error.bg,
-          border: `1px solid ${score.status === 'good' ? sem.success.border : score.status === 'medium' ? sem.warning.border : sem.error.border}`,
+          background: scoreStatus === 'good' ? sem.success.bg : scoreStatus === 'medium' ? sem.warning.bg : sem.error.bg,
+          border: `1px solid ${scoreStatus === 'good' ? sem.success.border : scoreStatus === 'medium' ? sem.warning.border : sem.error.border}`,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
             <div>
-              <p style={{ margin: 0, fontSize: 11, fontWeight: 600, letterSpacing: '.5px', textTransform: 'uppercase', color: score.status === 'good' ? sem.success.text : score.status === 'medium' ? sem.warning.text : sem.error.text, opacity: 0.75 }}>Diagnóstico del negocio</p>
-              <p style={{ margin: '5px 0 0', fontSize: 18, fontWeight: 800, color: score.status === 'good' ? sem.success.textStrong : score.status === 'medium' ? sem.warning.textStrong : sem.error.textStrong }}>
-                {score.status === 'good' ? '🟢' : score.status === 'medium' ? '🟡' : '🔴'} {score.statusText}
+              <p style={{ margin: 0, fontSize: 11, fontWeight: 600, letterSpacing: '.5px', textTransform: 'uppercase', color: scoreStatus === 'good' ? sem.success.text : scoreStatus === 'medium' ? sem.warning.text : sem.error.text, opacity: 0.75 }}>
+                Score del negocio
+              </p>
+              <p style={{ margin: '5px 0 0', fontSize: 18, fontWeight: 800, color: scoreStatus === 'good' ? sem.success.textStrong : scoreStatus === 'medium' ? sem.warning.textStrong : sem.error.textStrong }}>
+                {score}/100 · {scoreStatusText}
               </p>
             </div>
             {data.plan === 'free' && (
               <button 
-                onClick={handleUpgrade}
+                onClick={openModal}
                 style={{
                   padding: '12px 20px',
                   borderRadius: 8,
@@ -325,7 +461,7 @@ export default function Dashboard() {
                   e.target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)'
                 }}
               >
-                Pasar a PRO 🚀
+                Desbloquear PRO 🚀
               </button>
             )}
             {data.plan === 'pro' && (
@@ -352,39 +488,73 @@ export default function Dashboard() {
           <div style={{ height: 8, borderRadius: 999, background: 'rgba(0,0,0,0.10)', overflow: 'hidden', marginBottom: 14 }}>
             <div style={{
               height: '100%',
-              width: `${score.value}%`,
+              width: `${Math.max(0, Math.min(100, score))}%`,
               borderRadius: 999,
-              background: score.status === 'good'
+              background: scoreStatus === 'good'
                 ? 'linear-gradient(90deg, var(--success-accent), #34d399)'
-                : score.status === 'medium'
+                : scoreStatus === 'medium'
                 ? 'linear-gradient(90deg, var(--warning-accent), #fbbf24)'
                 : 'linear-gradient(90deg, var(--error-accent), #f87171)',
               transition: 'width 0.8s cubic-bezier(.4,0,.2,1)'
             }} />
           </div>
 
-          {/* Explicación del score */}
-          {score.details?.length > 0 && (
-            <div>
-              <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, letterSpacing: '.4px', textTransform: 'uppercase', color: score.status === 'good' ? sem.success.text : score.status === 'medium' ? sem.warning.text : sem.error.text, opacity: 0.7 }}>
-                ¿Por qué este score?
+          <div style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ display: 'grid', gap: 4 }}>
+              <p style={{ margin: 0, fontSize: 13, color: scoreStatus === 'good' ? sem.success.textStrong : scoreStatus === 'medium' ? sem.warning.textStrong : sem.error.textStrong }}>
+                {comparison.revenueDeltaPct >= 0 ? 'Facturacion en crecimiento' : 'Facturacion en caida'}: <strong>{comparison.revenueDeltaPct}%</strong>
               </p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px' }}>
-                {score.details.map((d, i) => (
-                  <span key={i} style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: score.status === 'good' ? sem.success.textStrong : score.status === 'medium' ? sem.warning.textStrong : sem.error.textStrong,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5
-                  }}>
-                    <span style={{ fontSize: 10, opacity: 0.7 }}>✓</span> {d}
-                  </span>
-                ))}
+              <p style={{ margin: 0, fontSize: 13, color: '#334155' }}>
+                {comparison.profitDeltaPct >= 0 ? 'Ganancia neta en alza' : 'Ganancia neta en baja'}: <strong>{comparison.profitDeltaPct}%</strong>
+              </p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  background: revenueTrend.bg,
+                  border: `1px solid ${revenueTrend.border}`,
+                  color: revenueTrend.text
+                }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 999, background: revenueTrend.dot }} />
+                  Facturacion: {revenueTrend.label}
+                </span>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  background: profitTrend.bg,
+                  border: `1px solid ${profitTrend.border}`,
+                  color: profitTrend.text
+                }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 999, background: profitTrend.dot }} />
+                  Ganancia: {profitTrend.label}
+                </span>
               </div>
             </div>
-          )}
+            <div style={{ display: 'grid', gap: 4, textAlign: 'right' }}>
+              <p style={{ margin: 0, fontSize: 13, color: '#334155' }}>
+                Facturacion: {formatMoney(comparison.currentMonthRevenue)} vs {formatMoney(comparison.previousMonthRevenue)}
+              </p>
+              <p style={{ margin: 0, fontSize: 13, color: '#334155' }}>
+                Ganancia: {formatMoney(comparison.currentMonthProfit)} vs {formatMoney(comparison.previousMonthProfit)}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -401,13 +571,13 @@ export default function Dashboard() {
         <div>
           <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.1 }}>Dashboard</h1>
           <p style={{ margin: '8px 0 0', maxWidth: 540, opacity: 0.92, fontSize: 14 }}>
-            Seguimiento de ganancias, rendimiento de productos y alertas de negocio en tiempo real.
+            Controla tus ventas, entende tus ganancias y toma mejores decisiones.
           </p>
         </div>
         <div style={{ textAlign: 'right' }}>
           <p style={{ margin: 0, fontSize: 12, opacity: 0.88 }}>Periodo activo</p>
           <p style={{ margin: '6px 0 0', fontSize: 22, fontWeight: 700 }}>{periodLabels[period]}</p>
-          <p style={{ margin: '6px 0 0', fontSize: 12, opacity: 0.88 }}>Salud general: {healthScore}/100</p>
+          <p style={{ margin: '6px 0 0', fontSize: 12, opacity: 0.88 }}>Salud general: {score}/100</p>
         </div>
       </div>
 
@@ -436,28 +606,96 @@ export default function Dashboard() {
           borderRadius: 999,
           fontSize: 12,
           fontWeight: 700,
-          background: healthScore >= 75 ? sem.success.bg : healthScore >= 45 ? sem.warning.bg : sem.error.bg,
+          background: score >= 75 ? sem.success.bg : score >= 45 ? sem.warning.bg : sem.error.bg,
           color: healthColor,
-          border: `1px solid ${healthScore >= 75 ? sem.success.border : healthScore >= 45 ? sem.warning.border : sem.error.border}`
+          border: `1px solid ${score >= 75 ? sem.success.border : score >= 45 ? sem.warning.border : sem.error.border}`
         }}>
           Salud {healthLabel}
         </span>
       </div>
 
+      {noSalesYet && (
+        <div className="dash-reveal" style={{
+          textAlign: 'center',
+          marginTop: 24,
+          background: '#fff',
+          border: '1px solid #e2e8f0',
+          borderRadius: 14,
+          padding: '24px 18px'
+        }}>
+          <h3 style={{ margin: 0, color: '#0f172a' }}>No tenes ventas todavia</h3>
+          <p style={{ margin: '8px 0 0', color: '#64748b' }}>
+            Registra tu primera venta para ver metricas y recomendaciones de crecimiento 🚀
+          </p>
+        </div>
+      )}
+
       <div className="dash-kpis dash-reveal" style={{ animationDelay: '.14s' }}>
-        <div className="dash-card" style={{ background: sem.success.bg, border: `1px solid ${sem.success.border}`, borderRadius: 12, padding: '16px 14px' }}>
+        <div className="dash-card" style={{ background: '#ecfeff', border: '1px solid #a5f3fc', borderRadius: 12, padding: '16px 14px', ...kpiMotion('totalRevenue') }}>
+          <p style={{ margin: 0, fontSize: 12, color: '#0f766e' }}>Facturacion total</p>
+          <p style={{ margin: '6px 0 0', fontSize: 26, fontWeight: 800, color: '#134e4a' }}>{formatMoney(data.metrics.totalRevenue)}</p>
+        </div>
+        <div className="dash-card" style={{ background: '#ecfeff', border: '1px solid #bae6fd', borderRadius: 12, padding: '16px 14px', ...kpiMotion('revenueDelta') }}>
+          <p style={{ margin: 0, fontSize: 12, color: '#0369a1' }}>Facturacion vs mes anterior</p>
+          <p style={{ margin: '6px 0 0', fontSize: 26, fontWeight: 800, color: '#0c4a6e' }}>
+            {comparison.revenueDeltaPct > 0 ? '+' : ''}{comparison.revenueDeltaPct}%
+          </p>
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            marginTop: 4,
+            padding: '4px 10px',
+            borderRadius: 999,
+            fontSize: 11,
+            fontWeight: 700,
+            background: revenueTrend.bg,
+            border: `1px solid ${revenueTrend.border}`,
+            color: revenueTrend.text
+          }}>
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: revenueTrend.dot }} />
+            {revenueTrend.label}
+          </span>
+        </div>
+        <div className="dash-card" style={{ background: sem.success.bg, border: `1px solid ${sem.success.border}`, borderRadius: 12, padding: '16px 14px', ...kpiMotion('totalProfit') }}>
           <p style={{ margin: 0, fontSize: 12, color: sem.success.text }}>Ganancia total</p>
           <p style={{ margin: '6px 0 0', fontSize: 26, fontWeight: 800, color: sem.success.textStrong }}>{formatMoney(data.metrics.totalProfit)}</p>
         </div>
-        <div className="dash-card" style={{ background: sem.info.bg, border: `1px solid ${sem.info.border}`, borderRadius: 12, padding: '16px 14px' }}>
+        <div className="dash-card" style={{ background: sem.info.bg, border: `1px solid ${sem.info.border}`, borderRadius: 12, padding: '16px 14px', ...kpiMotion('salesCount') }}>
           <p style={{ margin: 0, fontSize: 12, color: sem.info.text }}>Ventas registradas</p>
           <p style={{ margin: '6px 0 0', fontSize: 26, fontWeight: 800, color: sem.info.textStrong }}>{data.metrics.salesCount}</p>
         </div>
-        <div className="dash-card" style={{ background: sem.warning.bg, border: `1px solid ${sem.warning.border}`, borderRadius: 12, padding: '16px 14px' }}>
+        <div className="dash-card" style={{ background: sem.warning.bg, border: `1px solid ${sem.warning.border}`, borderRadius: 12, padding: '16px 14px', ...kpiMotion('avgTicket') }}>
           <p style={{ margin: 0, fontSize: 12, color: sem.warning.text }}>Ticket promedio</p>
           <p style={{ margin: '6px 0 0', fontSize: 26, fontWeight: 800, color: sem.warning.textStrong }}>{formatMoney(data.metrics.avgTicket)}</p>
         </div>
-        <div className="dash-card" style={{ background: sem.purple.bg, border: `1px solid ${sem.purple.border}`, borderRadius: 12, padding: '16px 14px' }}>
+        <div className="dash-card" style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 12, padding: '16px 14px', ...kpiMotion('avgMargin') }}>
+          <p style={{ margin: 0, fontSize: 12, color: '#c2410c' }}>Margen promedio</p>
+          <p style={{ margin: '6px 0 0', fontSize: 26, fontWeight: 800, color: '#9a3412' }}>{data.metrics.avgMargin}%</p>
+        </div>
+        <div className="dash-card" style={{ background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 12, padding: '16px 14px', ...kpiMotion('profitDelta') }}>
+          <p style={{ margin: 0, fontSize: 12, color: '#6d28d9' }}>Ganancia vs mes anterior</p>
+          <p style={{ margin: '6px 0 0', fontSize: 26, fontWeight: 800, color: '#5b21b6' }}>
+            {comparison.profitDeltaPct > 0 ? '+' : ''}{comparison.profitDeltaPct}%
+          </p>
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            marginTop: 4,
+            padding: '4px 10px',
+            borderRadius: 999,
+            fontSize: 11,
+            fontWeight: 700,
+            background: profitTrend.bg,
+            border: `1px solid ${profitTrend.border}`,
+            color: profitTrend.text
+          }}>
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: profitTrend.dot }} />
+            {profitTrend.label}
+          </span>
+        </div>
+        <div className="dash-card" style={{ background: sem.purple.bg, border: `1px solid ${sem.purple.border}`, borderRadius: 12, padding: '16px 14px', ...kpiMotion('topProduct') }}>
           <p style={{ margin: 0, fontSize: 12, color: sem.purple.text }}>Producto lider</p>
           <p style={{ margin: '6px 0 0', fontSize: 18, fontWeight: 800, color: sem.purple.textStrong }}>{data.metrics.topProduct || 'Sin datos'}</p>
         </div>
@@ -594,33 +832,74 @@ export default function Dashboard() {
       </div>
 
       <div className="dash-reveal" style={{ marginTop: 30, animationDelay: '.34s' }}>
-        <h3 style={{ margin: '0 0 10px', color: '#0f172a' }}>Recomendaciones inteligentes</h3>
+        <h3 style={{ margin: '0 0 10px', color: '#0f172a' }}>💡 Recomendaciones</h3>
 
-        {data.insights.length === 0 ? (
+        {insightList.length === 0 ? (
           <div style={{ background: 'var(--surface-soft)', border: '1px solid var(--border)', padding: '12px 14px', borderRadius: 10, color: 'var(--muted)' }}>
             No hay recomendaciones por ahora.
           </div>
         ) : (
-          data.insights.map((insight, i) => {
-            const meta = insightMeta[insight.type] || { icon: '○', bg: sem.info.bg, border: sem.info.accent, textHead: sem.info.text, textBody: sem.info.text, title: 'Mejora sugerida' }
+          insightList.map((insight, i) => {
             return (
               <div key={i} className="dash-card" style={{
-                background: meta.bg,
+                background: sem.info.bg,
                 padding: '12px 14px',
                 borderRadius: 10,
                 marginBottom: 10,
-                borderLeft: `5px solid ${meta.border}`,
+                borderLeft: `5px solid ${sem.info.accent}`,
                 display: 'grid',
                 gap: 4
               }}>
-                <p style={{ margin: 0, fontWeight: 700, color: meta.textHead, fontSize: 13 }}>{meta.icon} {meta.title}</p>
-                <p style={{ margin: 0, color: meta.textBody }}>{insight.message}</p>
+                <p style={{ margin: 0, fontWeight: 700, color: sem.info.text, fontSize: 13 }}>Insight automatico</p>
+                <p style={{ margin: 0, color: sem.info.text }}>{insight}</p>
               </div>
             )
           })
         )}
       </div>
+
+      <div className="dash-reveal" style={{
+        marginTop: 18,
+        background: '#f8fafc',
+        border: '1px solid #e2e8f0',
+        borderRadius: 12,
+        padding: '14px 16px'
+      }}>
+        <p style={{ margin: 0, fontWeight: 700, color: '#0f172a' }}>
+          No es solo registrar ventas, es entender tu negocio.
+        </p>
+      </div>
       </div>
     </div>
   )
+}
+
+function getTrendMeta(deltaPct) {
+  if (deltaPct >= 5) {
+    return {
+      label: 'En alza',
+      bg: '#dcfce7',
+      border: '#86efac',
+      text: '#166534',
+      dot: '#22c55e'
+    }
+  }
+
+  if (deltaPct <= -5) {
+    return {
+      label: 'En baja',
+      bg: '#fee2e2',
+      border: '#fca5a5',
+      text: '#991b1b',
+      dot: '#ef4444'
+    }
+  }
+
+  return {
+    label: 'Estable',
+    bg: '#fef3c7',
+    border: '#fcd34d',
+    text: '#92400e',
+    dot: '#f59e0b'
+  }
 }

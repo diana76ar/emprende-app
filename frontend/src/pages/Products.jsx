@@ -4,6 +4,7 @@ import { formatMoney } from '../utils/currency'
 import { useToast } from '../components/ToastProvider'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { uiTokens, sem } from '../styles/uiTokens'
+import { usePricingModal } from '../components/PricingModal'
 
 export default function Products() {
   const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
@@ -27,6 +28,7 @@ export default function Products() {
   const [lastCalc, setLastCalc] = useState(null)
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
   const toast = useToast()
+  const { openPricingModal } = usePricingModal()
 
   useEffect(() => {
     load()
@@ -41,6 +43,10 @@ export default function Products() {
   const totalCost = form.costBase + form.costShipping + form.costCommission + form.costOther
   const suggestedPrice = totalCost * (1 + form.margin / 100)
   const profit = suggestedPrice - totalCost
+  const stockUnits = Math.max(0, Number.isFinite(form.stock) ? Math.floor(form.stock) : 0)
+  const totalCostStock = totalCost * stockUnits
+  const suggestedRevenueStock = suggestedPrice * stockUnits
+  const profitStock = profit * stockUnits
 
   const getColor = (score) => {
     if (score < 40) return '#ff4d4d'
@@ -61,12 +67,18 @@ export default function Products() {
       score -= 40
       recommendedPrice = totalCost * 1.5
       insights.push('Margen muy bajo')
-      insights.push(`Subi el precio a ${formatMoney(recommendedPrice)}`)
+      insights.push(`Subi el precio por unidad a ${formatMoney(recommendedPrice)}`)
     } else if (marginPercent < 40) {
       score -= 20
-      recommendedPrice = totalCost * 1.3
+      // Objetivo minimo de mejora: 40% sobre costo. Nunca sugerir menos que el precio actual.
+      const targetPrice = totalCost * 1.4
+      recommendedPrice = Math.max(targetPrice, suggestedPrice)
       insights.push('Margen mejorable')
-      insights.push(`Podrias vender a ${formatMoney(recommendedPrice)}`)
+      if (recommendedPrice > suggestedPrice) {
+        insights.push(`Podrias subir el precio por unidad a ${formatMoney(recommendedPrice)}`)
+      } else {
+        insights.push(`Tu precio por unidad ya es correcto (${formatMoney(suggestedPrice)})`)
+      }
     } else {
       insights.push('Buen margen')
       insights.push('Podes bajar precio para vender mas volumen')
@@ -185,6 +197,10 @@ export default function Products() {
       load()
       toast.success(wasEditing ? 'Producto actualizado' : 'Producto creado')
     } catch (requestError) {
+      if (requestError.response?.status === 403) {
+        openPricingModal()
+        return
+      }
       const messageFromApi = requestError.response?.data?.error || 'No se pudo guardar el producto'
       setError(messageFromApi)
       toast.error(messageFromApi)
@@ -331,7 +347,7 @@ export default function Products() {
       <div style={{ marginBottom: 28 }}>
         <h1 className="products-title">Productos</h1>
         <p className="products-subtitle">
-          Gestioná tus productos, costos y margenes de ganancia
+          Sabe que productos te dejan mas ganancia y evita perder plata sin darte cuenta
         </p>
       </div>
 
@@ -450,8 +466,11 @@ export default function Products() {
               }}
             />
             <span style={{ fontSize: 13, color: '#555' }}>
-              Precio sugerido:{' '}
+              Precio sugerido por unidad:{' '}
               <strong style={{ color: sem.success.textStrong, fontSize: 15 }}>{formatMoney(suggestedPrice)}</strong>
+              <span style={{ marginLeft: 8, color: '#666', fontSize: 12 }}>
+                Total ({stockUnits} u): {formatMoney(suggestedRevenueStock)}
+              </span>
             </span>
           </div>
         </div>
@@ -493,21 +512,30 @@ export default function Products() {
           </p>
           <div className="products-sim-grid">
             <div>
-              <p style={{ margin: 0, fontSize: 11, color: '#555' }}>Costo total</p>
+              <p style={{ margin: 0, fontSize: 11, color: '#555' }}>Costo por unidad</p>
               <p style={{ margin: '4px 0 0', fontWeight: 700, color: '#333', fontSize: 16 }}>
                 {formatMoney(totalCost)}
               </p>
+              <p style={{ margin: '3px 0 0', fontSize: 11, color: '#666' }}>
+                Total ({stockUnits} u): {formatMoney(totalCostStock)}
+              </p>
             </div>
             <div style={{ borderLeft: `1px solid ${sem.info.border}`, borderRight: `1px solid ${sem.info.border}` }}>
-              <p style={{ margin: 0, fontSize: 11, color: '#555' }}>Precio sugerido</p>
+              <p style={{ margin: 0, fontSize: 11, color: '#555' }}>Precio sugerido por unidad</p>
               <p style={{ margin: '4px 0 0', fontWeight: 700, color: sem.info.textStrong, fontSize: 16 }}>
                 {formatMoney(suggestedPrice)}
+              </p>
+              <p style={{ margin: '3px 0 0', fontSize: 11, color: '#666' }}>
+                Total ({stockUnits} u): {formatMoney(suggestedRevenueStock)}
               </p>
             </div>
             <div>
               <p style={{ margin: 0, fontSize: 11, color: '#555' }}>Ganancia por unidad</p>
               <p style={{ margin: '4px 0 0', fontWeight: 700, fontSize: 16, color: profit >= 0 ? sem.success.textStrong : sem.error.textStrong }}>
                 {formatMoney(profit)}
+              </p>
+              <p style={{ margin: '3px 0 0', fontSize: 11, color: '#666' }}>
+                Ganancia total ({stockUnits} u): {formatMoney(profitStock)}
               </p>
             </div>
           </div>
@@ -663,6 +691,9 @@ export default function Products() {
           {products.map((p) => {
             const costo = p.costBase + p.costShipping + p.costCommission + p.costOther
             const precioSug = costo * (1 + p.margin / 100)
+            const profitUnit = precioSug - costo
+            const profitTotalStock = profitUnit * (p.stock ?? 0)
+            const potentialRevenueStock = precioSug * (p.stock ?? 0)
             return (
               <div key={p.id} style={{
                 background: '#fff',
@@ -707,10 +738,40 @@ export default function Products() {
                     </p>
                     <div style={{ display: 'flex', gap: 16, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
                       <span style={{ fontSize: 13, color: '#555' }}>
-                        Costo: <strong>{formatMoney(costo)}</strong>
+                        Costo unitario: <strong>{formatMoney(costo)}</strong>
                       </span>
                       <span style={{ fontSize: 13, color: '#1565c0' }}>
-                        Precio sugerido: <strong>{formatMoney(precioSug)}</strong>
+                        Precio sugerido unidad: <strong>{formatMoney(precioSug)}</strong>
+                      </span>
+                      <span style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        padding: '2px 10px',
+                        borderRadius: 20,
+                        background: profitUnit >= 0 ? sem.success.bg : sem.error.bg,
+                        color: profitUnit >= 0 ? sem.success.textStrong : sem.error.textStrong
+                      }}>
+                        💸 Ganancia/u: {formatMoney(profitUnit)}
+                      </span>
+                      <span style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        padding: '2px 10px',
+                        borderRadius: 20,
+                        background: profitTotalStock >= 0 ? sem.success.bg : sem.error.bg,
+                        color: profitTotalStock >= 0 ? sem.success.textStrong : sem.error.textStrong
+                      }}>
+                        🧾 Ganancia total: {formatMoney(profitTotalStock)}
+                      </span>
+                      <span style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        padding: '2px 10px',
+                        borderRadius: 20,
+                        background: sem.info.bg,
+                        color: sem.info.textStrong
+                      }}>
+                        💰 Ingreso potencial: {formatMoney(potentialRevenueStock)}
                       </span>
                       <span style={{
                         fontSize: 12,

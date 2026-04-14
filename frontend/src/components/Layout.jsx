@@ -50,7 +50,7 @@ export default function Layout({ children }) {
           </span>
           <div>
             <p className="brand-title">Emprende</p>
-            <p className="brand-subtitle">Business control</p>
+            <p className="brand-subtitle">Entende si estas ganando plata</p>
           </div>
         </div>
 

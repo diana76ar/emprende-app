@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 import { ToastProvider } from './components/ToastProvider'
+import { PricingModalProvider } from './components/PricingModal'
 
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -34,7 +35,8 @@ function PublicOnly({ children }) {
 function App() {
   return (
     <ToastProvider>
-      <BrowserRouter>
+      <PricingModalProvider>
+        <BrowserRouter>
         <Routes>
 
           {/* LOGIN sin layout */}
@@ -51,8 +53,7 @@ function App() {
           <Route path="/cancel" element={<Cancel />} />
 
         </Routes>
-      </BrowserRouter>
-    </ToastProvider>
+      </BrowserRouter>      </PricingModalProvider>    </ToastProvider>
   )
 }
 

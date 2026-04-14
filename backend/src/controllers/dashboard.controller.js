@@ -27,10 +27,19 @@ function getStartDate(period) {
   return null
 }
 
+function getMonthRange(monthOffset = 0) {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1)
+  const end = new Date(now.getFullYear(), now.getMonth() + monthOffset + 1, 1)
+
+  start.setHours(0, 0, 0, 0)
+  end.setHours(0, 0, 0, 0)
+
+  return { start, end }
+}
+
 export async function getDashboard(req, res) {
   try {
-    console.log("USER:", req.user)
-
     const userId = req.user?.userId
 
     if (!userId) {
@@ -46,32 +55,63 @@ export async function getDashboard(req, res) {
       where.date = { gte: startDate }
     }
 
-    const sales = await prisma.sale.findMany({
-      where,
-      include: { product: true }
-  }) 
+    const [{ start: currentMonthStart, end: currentMonthEnd }, { start: previousMonthStart, end: previousMonthEnd }] = [
+      getMonthRange(0),
+      getMonthRange(-1)
+    ]
 
-    const products = await prisma.product.findMany({
-      where: { userId }
-    })
+    const [sales, products, currentMonthSales, previousMonthSales, user] = await Promise.all([
+      prisma.sale.findMany({
+        where,
+        include: { product: true }
+      }),
+      prisma.product.findMany({
+        where: { userId }
+      }),
+      prisma.sale.findMany({
+        where: {
+          userId,
+          date: {
+            gte: currentMonthStart,
+            lt: currentMonthEnd
+          }
+        }
+      }),
+      prisma.sale.findMany({
+        where: {
+          userId,
+          date: {
+            gte: previousMonthStart,
+            lt: previousMonthEnd
+          }
+        }
+      })
+      ,
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { plan: true }
+      })
+    ])
 
-    let totalProfit = 0
-    let totalRevenue = 0
+    const totalRevenue = sales.reduce((acc, s) => acc + s.price * s.quantity, 0)
+    const totalProfit = sales.reduce((acc, s) => acc + s.profit, 0)
+    const avgMargin = totalRevenue > 0
+      ? Number(((totalProfit / totalRevenue) * 100).toFixed(1))
+      : 0
 
     const productStats = {}
 
     for (const sale of sales) {
-      totalProfit += sale.profit
-      totalRevenue += sale.price * sale.quantity
-
       if (!productStats[sale.productId]) {
         productStats[sale.productId] = {
           name: sale.product.name,
-          profit: 0
+          profit: 0,
+          revenue: 0
         }
       }
 
       productStats[sale.productId].profit += sale.profit
+      productStats[sale.productId].revenue += sale.price * sale.quantity
     }
 
     const salesCount = sales.length
@@ -101,7 +141,7 @@ export async function getDashboard(req, res) {
 
     for (const product of products) {
       const calc = calculateProduct(product)
-      const marginPercent = (calc.profit / calc.totalCost) * 100
+      const marginPercent = calc.totalCost > 0 ? (calc.profit / calc.totalCost) * 100 : 0
 
       if (marginPercent < 20) {
         alerts.push({
@@ -128,130 +168,91 @@ export async function getDashboard(req, res) {
       .sort((a, b) => b.profit - a.profit)
       .slice(0, 5)
 
-    // 🤖 INSIGHTS
     const insights = []
 
-    // 1. Sin ventas en el periodo
-    if (sales.length === 0) {
-      insights.push({
-        type: 'no_sales',
-        message: 'Todavia no hay ventas en este periodo. Empeza a cargar datos'
-      })
+    const plan = user?.plan || 'free'
+    const scoreThresholds = plan === 'pro'
+      ? { profit: 65000, sales: 14, margin: 35 }
+      : { profit: 50000, sales: 10, margin: 30 }
+
+    if (avgMargin < (plan === 'pro' ? 22 : 20)) {
+      insights.push('Tu margen es bajo, podrias aumentar precios')
     }
 
-    // 2. Margen bajo por producto
-    for (const product of products) {
-      const calc = calculateProduct(product)
-      const marginPercent = (calc.profit / calc.totalCost) * 100
-      if (marginPercent < 20) {
-        insights.push({
-          type: 'low_margin',
-          message: `Subi el precio de "${product.name}". Margen muy bajo (${marginPercent.toFixed(0)}%)`
-        })
+    if (totalProfit > scoreThresholds.profit) {
+      insights.push('Excelente mes en ganancias')
+    }
+
+    if (salesCount === 0) {
+      insights.push('No registraste ventas este mes')
+    }
+
+    const currentMonthRevenue = currentMonthSales.reduce((acc, s) => acc + s.price * s.quantity, 0)
+    const previousMonthRevenue = previousMonthSales.reduce((acc, s) => acc + s.price * s.quantity, 0)
+    const currentMonthProfit = currentMonthSales.reduce((acc, s) => acc + s.profit, 0)
+    const previousMonthProfit = previousMonthSales.reduce((acc, s) => acc + s.profit, 0)
+    let revenueDeltaPct = 0
+    let profitDeltaPct = 0
+
+    if (previousMonthRevenue > 0) {
+      revenueDeltaPct = Number((((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100).toFixed(1))
+      if (currentMonthRevenue > previousMonthRevenue) {
+        insights.push('Estas creciendo respecto al mes pasado')
+      } else if (currentMonthRevenue < previousMonthRevenue) {
+        insights.push('Bajaste versus el mes pasado, revisa precios y promocion')
       }
+    } else if (currentMonthRevenue > 0) {
+      revenueDeltaPct = 100
+      insights.push('Primer mes con ventas registradas, gran avance')
     }
 
-    // 3. Dependencia de un solo producto
-    if (ranking.length > 0 && totalProfit > 0) {
-      const top = ranking[0]
-      const percent = (top.profit / totalProfit) * 100
-      if (percent > 60) {
-        insights.push({
-          type: 'dependency',
-          message: `Dependes demasiado de "${top.name}" (${percent.toFixed(0)}% de las ganancias). Diversifica tu catalogo`
-        })
+    if (previousMonthProfit > 0) {
+      profitDeltaPct = Number((((currentMonthProfit - previousMonthProfit) / previousMonthProfit) * 100).toFixed(1))
+      if (currentMonthProfit > previousMonthProfit) {
+        insights.push('Tu ganancia neta subio respecto al mes pasado')
+      } else if (currentMonthProfit < previousMonthProfit) {
+        insights.push('La ganancia neta cayo vs el mes pasado, revisa costos y mix de productos')
       }
-    }
-
-    // 4. Producto estrella — oportunidad de escalar
-    if (ranking.length > 0 && sales.length > 0) {
-      const top = ranking[0]
-      insights.push({
-        type: 'opportunity',
-        message: `Potencia "${top.name}". Es tu producto mas rentable del periodo`
-      })
+    } else if (currentMonthProfit > 0) {
+      profitDeltaPct = 100
     }
 
     const metrics = {
+      totalRevenue,
       totalProfit,
+      avgMargin,
       salesCount,
       avgTicket,
       topProduct,
       worstProduct
     }
 
-    // 🧠 SCORE INTELIGENTE
     let score = 0
-    const scoreDetails = []
 
-    const margins = products.map(p => {
-      const calc = calculateProduct(p)
-      return calc.totalCost > 0 ? (calc.profit / calc.totalCost) * 100 : 0
-    })
-    const avgMargin = margins.length > 0
-      ? margins.reduce((a, b) => a + b, 0) / margins.length
-      : 0
+    if (totalProfit > scoreThresholds.profit) score += 40
+    if (salesCount > scoreThresholds.sales) score += 30
+    if (avgMargin > scoreThresholds.margin) score += 30
 
-    if (avgMargin > 40) {
-      score += 40
-      scoreDetails.push('Buen margen de ganancia')
-    } else if (avgMargin > 20) {
-      score += 25
-      scoreDetails.push('Margen aceptable, pero mejorable')
-    } else {
-      score += 10
-      scoreDetails.push('Margen bajo, deberia subir precios')
+    if (plan === 'free' && score >= 60) {
+      insights.push('Tu negocio ya tiene base solida. Con PRO podes activar analisis mas avanzados')
     }
-
-    if (salesCount > 10) {
-      score += 30
-      scoreDetails.push('Buen volumen de ventas')
-    } else if (salesCount > 3) {
-      score += 20
-      scoreDetails.push('Ventas moderadas')
-    } else {
-      score += 10
-      scoreDetails.push('Pocas ventas en este periodo')
-    }
-
-    if (ranking.length > 0) {
-      const top = ranking[0]
-      const percent = (top.profit / (totalProfit || 1)) * 100
-      if (percent < 50) {
-        score += 30
-        scoreDetails.push('Ingresos bien diversificados')
-      } else if (percent < 70) {
-        score += 15
-        scoreDetails.push('Dependencia moderada de un producto')
-      } else {
-        score += 5
-        scoreDetails.push('Alta dependencia de un solo producto')
-      }
-    }
-
-    let status = 'low'
-    let statusText = 'Riesgo'
-    if (score >= 70) {
-      status = 'good'
-      statusText = 'Estas creciendo bien'
-    } else if (score >= 40) {
-      status = 'medium'
-      statusText = 'Podes mejorar'
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { plan: true }
-    })
 
     res.json({
       period,
-      plan: user.plan,
+      plan,
       metrics,
       alerts,
       ranking,
       insights,
-      score: { value: score, status, statusText, details: scoreDetails }
+      score,
+      comparison: {
+        currentMonthRevenue,
+        previousMonthRevenue,
+        revenueDeltaPct,
+        currentMonthProfit,
+        previousMonthProfit,
+        profitDeltaPct
+      }
     })
 
   } catch (error) {
